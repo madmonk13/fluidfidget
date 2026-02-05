@@ -247,28 +247,28 @@
                 </div>
 
                 <div class="control-group">
-                    <label>Number of Objects <span class="value-display" id="count-value">10</span></label>
-                    <input type="range" id="object-count" min="1" max="30" step="1" value="10">
+                    <label>Number of Objects <span class="value-display" id="count-value">20</span></label>
+                    <input type="range" id="object-count" min="1" max="30" step="1" value="20">
                 </div>
 
                 <div class="control-group">
-                    <label>Object Size <span class="value-display" id="size-value">20</span></label>
-                    <input type="range" id="object-size" min="5" max="40" step="1" value="20">
+                    <label>Object Size <span class="value-display" id="size-value">40</span></label>
+                    <input type="range" id="object-size" min="5" max="50" step="1" value="40">
                 </div>
 
                 <div class="control-group">
                     <label>Fluid Color</label>
-                    <input type="color" id="fluid-color" value="#4a90e2">
+                    <input type="color" id="fluid-color" value="#6b2d8f">
                 </div>
 
                 <div class="control-group">
                     <label>Object Shape</label>
                     <select id="shape-select">
-                        <option value="circle">Circles</option>
+                        <option value="circle" selected>Circles</option>
                         <option value="square">Squares</option>
                         <option value="pentagon">Pentagons</option>
                         <option value="hexagon">Hexagons</option>
-                        <option value="random" selected>Random Mix</option>
+                        <option value="random">Random Mix</option>
                     </select>
                 </div>
             </div>
@@ -293,10 +293,34 @@
         // Configuration - updated defaults
         let config = {
             viscosity: 0.3,
-            fluidColor: '#4a90e2',
-            objectCount: 10,
-            objectSize: 20,
-            shape: 'random'
+            fluidColor: '#6b2d8f',
+            objectCount: 20,
+            objectSize: 40,
+            shape: 'circle'
+        };
+
+        // Haptic feedback helper
+        const haptics = {
+            supported: 'vibrate' in navigator,
+            
+            tap: function() {
+                if (this.supported) {
+                    navigator.vibrate(10);
+                }
+            },
+            
+            drag: function() {
+                if (this.supported) {
+                    navigator.vibrate(5);
+                }
+            },
+            
+            collision: function(intensity = 1) {
+                if (this.supported) {
+                    const duration = Math.min(Math.floor(intensity * 20), 30);
+                    navigator.vibrate(duration);
+                }
+            }
         };
 
         // Modal functionality
@@ -580,6 +604,7 @@
         let isInteracting = false;
         let lastX = 0;
         let lastY = 0;
+        let dragFrameCount = 0; // For throttling drag haptics
 
         function getPosition(e) {
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -596,6 +621,9 @@
             const pos = getPosition(e);
             lastX = pos.x;
             lastY = pos.y;
+            
+            // Haptic feedback on touch
+            haptics.tap();
             
             // Add immediate radial outward push on touch - scaled by viscosity
             const pushRadius = 50;
@@ -622,6 +650,14 @@
             const pos = getPosition(e);
             const dx = pos.x - lastX;
             const dy = pos.y - lastY;
+            const moveSpeed = Math.sqrt(dx * dx + dy * dy);
+            
+            // Haptic feedback for drag - throttled every 10 frames and only for significant movement
+            dragFrameCount++;
+            if (dragFrameCount > 10 && moveSpeed > 2) {
+                haptics.drag();
+                dragFrameCount = 0;
+            }
             
             // Scale force based on viscosity - low viscosity = more responsive, higher forces
             const forceMultiplier = 2 + (1 - config.viscosity) * 3;
@@ -660,6 +696,7 @@
 
         function endInteraction() {
             isInteracting = false;
+            dragFrameCount = 0;
         }
 
         canvas.addEventListener('mousedown', startInteraction);
@@ -1006,6 +1043,12 @@
                     // Add rotation from collision (reduced)
                     this.rotationSpeed += (relativeVx * dy - relativeVy * dx) * 0.0002;
                     other.rotationSpeed -= (relativeVx * dy - relativeVy * dx) * 0.0002;
+                    
+                    // Haptic feedback for collision - intensity based on relative velocity
+                    const collisionSpeed = Math.sqrt(relativeVx * relativeVx + relativeVy * relativeVy);
+                    if (collisionSpeed > 1) {
+                        haptics.collision(Math.min(collisionSpeed / 10, 1.5));
+                    }
                 }
             }
 
