@@ -238,7 +238,7 @@
 <body>
     <canvas id="canvas"></canvas>
     
-    <div class="version">v1.0</div>
+    <div class="version">v1.2</div>
     
     <button class="settings-btn" id="settings-btn" aria-label="Settings">
         <svg viewBox="0 0 24 24">
@@ -286,6 +286,14 @@
                         <option value="random">Random Mix</option>
                     </select>
                 </div>
+
+                <div class="control-group">
+                    <label>Object Style</label>
+                    <select id="style-select">
+                        <option value="outline" selected>Outlined</option>
+                        <option value="solid">Solid</option>
+                    </select>
+                </div>
             </div>
         </div>
     </div>
@@ -311,31 +319,8 @@
             fluidColor: '#6b2d8f',
             objectCount: 20,
             objectSize: 40,
-            shape: 'circle'
-        };
-
-        // Haptic feedback helper
-        const haptics = {
-            supported: 'vibrate' in navigator,
-            
-            tap: function() {
-                if (this.supported) {
-                    navigator.vibrate(10);
-                }
-            },
-            
-            drag: function() {
-                if (this.supported) {
-                    navigator.vibrate(5);
-                }
-            },
-            
-            collision: function(intensity = 1) {
-                if (this.supported) {
-                    const duration = Math.min(Math.floor(intensity * 20), 30);
-                    navigator.vibrate(duration);
-                }
-            }
+            shape: 'circle',
+            objectStyle: 'outline'
         };
 
         // Modal functionality
@@ -522,8 +507,8 @@
                     other.vy += dotProduct * dy * 0.5;
                     
                     // Add rotation from collision (reduced)
-                    this.rotationSpeed += (relativeVx * dy - relativeVy * dx) * 0.0002;
-                    other.rotationSpeed -= (relativeVx * dy - relativeVy * dx) * 0.0002;
+                    this.rotationSpeed += (relativeVx * dy - relativeVy * dx) * 0.00005;
+                    other.rotationSpeed -= (relativeVx * dy - relativeVy * dx) * 0.00005;
                 }
             }
 
@@ -560,8 +545,6 @@
                     ctx.closePath();
                 }
                 
-                ctx.fill();
-                ctx.stroke();
                 ctx.restore();
             }
         }
@@ -619,7 +602,6 @@
         let isInteracting = false;
         let lastX = 0;
         let lastY = 0;
-        let dragFrameCount = 0; // For throttling drag haptics
 
         function getPosition(e) {
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -636,9 +618,6 @@
             const pos = getPosition(e);
             lastX = pos.x;
             lastY = pos.y;
-            
-            // Haptic feedback on touch
-            haptics.tap();
             
             // Add immediate radial outward push on touch - scaled by viscosity
             const pushRadius = 50;
@@ -665,14 +644,6 @@
             const pos = getPosition(e);
             const dx = pos.x - lastX;
             const dy = pos.y - lastY;
-            const moveSpeed = Math.sqrt(dx * dx + dy * dy);
-            
-            // Haptic feedback for drag - throttled every 10 frames and only for significant movement
-            dragFrameCount++;
-            if (dragFrameCount > 10 && moveSpeed > 2) {
-                haptics.drag();
-                dragFrameCount = 0;
-            }
             
             // Scale force based on viscosity - low viscosity = more responsive, higher forces
             const forceMultiplier = 2 + (1 - config.viscosity) * 3;
@@ -711,7 +682,6 @@
 
         function endInteraction() {
             isInteracting = false;
-            dragFrameCount = 0;
         }
 
         canvas.addEventListener('mousedown', startInteraction);
@@ -747,6 +717,9 @@
         document.getElementById('shape-select').addEventListener('change', (e) => {
             config.shape = e.target.value;
             createObjects();
+        });
+        document.getElementById('style-select').addEventListener('change', (e) => {
+            config.objectStyle = e.target.value;
         });
 
         // Animation loop
@@ -1056,14 +1029,9 @@
                     other.vy += dotProduct * dy * 0.5;
                     
                     // Add rotation from collision (reduced)
-                    this.rotationSpeed += (relativeVx * dy - relativeVy * dx) * 0.0002;
-                    other.rotationSpeed -= (relativeVx * dy - relativeVy * dx) * 0.0002;
+                    this.rotationSpeed += (relativeVx * dy - relativeVy * dx) * 0.00005;
+                    other.rotationSpeed -= (relativeVx * dy - relativeVy * dx) * 0.00005;
                     
-                    // Haptic feedback for collision - intensity based on relative velocity
-                    const collisionSpeed = Math.sqrt(relativeVx * relativeVx + relativeVy * relativeVy);
-                    if (collisionSpeed > 1) {
-                        haptics.collision(Math.min(collisionSpeed / 10, 1.5));
-                    }
                 }
             }
 
@@ -1072,15 +1040,21 @@
                 ctx.translate(this.x, this.y);
                 ctx.rotate(this.rotation);
                 
-                // Create gradient
-                const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, this.size);
-                gradient.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
-                gradient.addColorStop(0.5, 'rgba(230, 230, 230, 0.8)');
-                gradient.addColorStop(1, 'rgba(200, 200, 200, 0.7)');
-                
-                ctx.fillStyle = gradient;
-                ctx.strokeStyle = 'rgba(100, 100, 100, 0.5)';
-                ctx.lineWidth = 2;
+                if (config.objectStyle === 'outline') {
+                    // Outlined style - no fill, just stroke
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+                    ctx.lineWidth = 3;
+                    ctx.fillStyle = 'transparent';
+                } else {
+                    // Solid style - gradient fill with stroke
+                    const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, this.size);
+                    gradient.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+                    gradient.addColorStop(0.5, 'rgba(230, 230, 230, 0.8)');
+                    gradient.addColorStop(1, 'rgba(200, 200, 200, 0.7)');
+                    ctx.fillStyle = gradient;
+                    ctx.strokeStyle = 'rgba(100, 100, 100, 0.5)';
+                    ctx.lineWidth = 2;
+                }
                 
                 ctx.beginPath();
                 
@@ -1100,7 +1074,9 @@
                     ctx.closePath();
                 }
                 
-                ctx.fill();
+                if (config.objectStyle === 'solid') {
+                    ctx.fill();
+                }
                 ctx.stroke();
                 ctx.restore();
             }
