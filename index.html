@@ -31,6 +31,19 @@
             cursor: grabbing;
         }
 
+        /* Version Number */
+        .version {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 12px;
+            font-weight: 500;
+            z-index: 100;
+            user-select: none;
+            pointer-events: none;
+        }
+
         /* Settings Button */
         .settings-btn {
             position: fixed;
@@ -224,6 +237,8 @@
 </head>
 <body>
     <canvas id="canvas"></canvas>
+    
+    <div class="version">v1.0</div>
     
     <button class="settings-btn" id="settings-btn" aria-label="Settings">
         <svg viewBox="0 0 24 24">
@@ -450,7 +465,7 @@
                 // Apply friction
                 this.vx *= 0.95;
                 this.vy *= 0.95;
-                this.rotationSpeed *= 0.90;
+                this.rotationSpeed *= 0.85;
                 
                 // Update position
                 this.x += this.vx;
@@ -983,7 +998,7 @@
                 // Apply friction
                 this.vx *= 0.95;
                 this.vy *= 0.95;
-                this.rotationSpeed *= 0.90;
+                this.rotationSpeed *= 0.85;
                 
                 // Update position
                 this.x += this.vx;
