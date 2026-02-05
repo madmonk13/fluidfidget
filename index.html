@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Viscous Fluid Fidget Toy</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #000000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            max-width: 900px;
+            width: 100%;
+        }
+
+        .controls {
+            padding: 25px;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        .control-group:last-child {
+            margin-bottom: 0;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #495057;
+            font-size: 14px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #dee2e6;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+            background: #764ba2;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+        }
+
+        input[type="color"] {
+            width: 100%;
+            height: 45px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 14px;
+            background: white;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .value-display {
+            display: inline-block;
+            float: right;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        #canvas {
+            display: block;
+            width: 100%;
+            height: 500px;
+            cursor: grab;
+            touch-action: none;
+        }
+
+        #canvas:active {
+            cursor: grabbing;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="controls">
+            <div class="grid">
+                <div class="control-group">
+                    <label>
+                        Fluid Viscosity
+                        <span class="value-display" id="viscosity-value">0.75</span>
+                    </label>
+                    <input type="range" id="viscosity" min="0.3" max="0.98" step="0.01" value="0.75">
+                </div>
+
+                <div class="control-group">
+                    <label>Number of Objects <span class="value-display" id="count-value">10</span></label>
+                    <input type="range" id="object-count" min="1" max="30" step="1" value="10">
+                </div>
+
+                <div class="control-group">
+                    <label>Object Size <span class="value-display" id="size-value">15</span></label>
+                    <input type="range" id="object-size" min="5" max="40" step="1" value="15">
+                </div>
+
+                <div class="control-group">
+                    <label>Fluid Color</label>
+                    <input type="color" id="fluid-color" value="#4a90e2">
+                </div>
+
+                <div class="control-group">
+                    <label>Object Shape</label>
+                    <select id="shape-select">
+                        <option value="circle">Circles</option>
+                        <option value="square">Squares</option>
+                        <option value="pentagon">Pentagons</option>
+                        <option value="hexagon">Hexagons</option>
+                        <option value="random">Random Mix</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Set canvas size
+        function resizeCanvas() {
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * window.devicePixelRatio;
+            canvas.height = rect.height * window.devicePixelRatio;
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+            canvas.style.width = rect.width + 'px';
+            canvas.style.height = rect.height + 'px';
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // Configuration
+        let config = {
+            viscosity: 0.75,
+            fluidColor: '#4a90e2',
+            objectCount: 10,
+            objectSize: 15,
+            shape: 'circle'
+        };
+
+        // Fluid simulation
+        class FluidField {
+            constructor(width, height) {
+                this.width = width;
+                this.height = height;
+                this.resolution = 20;
+                this.cols = Math.floor(width / this.resolution);
+                this.rows = Math.floor(height / this.resolution);
+                
+                this.velocityX = Array(this.cols * this.rows).fill(0);
+                this.velocityY = Array(this.cols * this.rows).fill(0);
+                this.prevVelocityX = Array(this.cols * this.rows).fill(0);
+                this.prevVelocityY = Array(this.cols * this.rows).fill(0);
+            }
+
+            index(x, y) {
+                x = Math.max(0, Math.min(this.cols - 1, x));
+                y = Math.max(0, Math.min(this.rows - 1, y));
+                return x + y * this.cols;
+            }
+
+            addForce(x, y, forceX, forceY) {
+                const col = Math.floor(x / this.resolution);
+                const row = Math.floor(y / this.resolution);
+                const idx = this.index(col, row);
+                
+                this.velocityX[idx] += forceX;
+                this.velocityY[idx] += forceY;
+            }
+
+            diffuse(viscosity) {
+                const a = viscosity * this.cols * this.rows;
+                
+                for (let iter = 0; iter < 4; iter++) {
+                    for (let y = 1; y < this.rows - 1; y++) {
+                        for (let x = 1; x < this.cols - 1; x++) {
+                            const idx = this.index(x, y);
+                            
+                            this.velocityX[idx] = (this.prevVelocityX[idx] + a * (
+                                this.velocityX[this.index(x - 1, y)] +
+                                this.velocityX[this.index(x + 1, y)] +
+                                this.velocityX[this.index(x, y - 1)] +
+                                this.velocityX[this.index(x, y + 1)]
+                            )) / (1 + 4 * a);
+                            
+                            this.velocityY[idx] = (this.prevVelocityY[idx] + a * (
+                                this.velocityY[this.index(x - 1, y)] +
+                                this.velocityY[this.index(x + 1, y)] +
+                                this.velocityY[this.index(x, y - 1)] +
+                                this.velocityY[this.index(x, y + 1)]
+                            )) / (1 + 4 * a);
+                        }
+                    }
+                }
+            }
+
+            step() {
+                this.prevVelocityX = [...this.velocityX];
+                this.prevVelocityY = [...this.velocityY];
+                
+                this.diffuse(1 - config.viscosity);
+                
+                // Decay tied to viscosity - higher viscosity = slower decay (more persistent motion)
+                // Low viscosity (0.3) = 0.94 decay (loses energy quickly, watery)
+                // High viscosity (0.98) = 0.995 decay (retains energy, thick gel)
+                const decayRate = 0.94 + (config.viscosity * 0.055);
+                
+                for (let i = 0; i < this.velocityX.length; i++) {
+                    this.velocityX[i] *= decayRate;
+                    this.velocityY[i] *= decayRate;
+                }
+            }
+
+            getVelocity(x, y) {
+                const col = Math.floor(x / this.resolution);
+                const row = Math.floor(y / this.resolution);
+                const idx = this.index(col, row);
+                return {
+                    x: this.velocityX[idx],
+                    y: this.velocityY[idx]
+                };
+            }
+        }
+
+        // Solid object
+        class SolidObject {
+            constructor(x, y, size, shape) {
+                this.x = x;
+                this.y = y;
+                this.vx = 0;
+                this.vy = 0;
+                this.size = size;
+                this.shape = shape;
+                this.rotation = Math.random() * Math.PI * 2;
+                this.rotationSpeed = 0;
+            }
+
+            update(fluidField) {
+                // Get fluid velocity at object position
+                const vel = fluidField.getVelocity(this.x, this.y);
+                
+                // Apply fluid force
+                this.vx += vel.x * 0.5;
+                this.vy += vel.y * 0.5;
+                
+                // Apply friction
+                this.vx *= 0.95;
+                this.vy *= 0.95;
+                this.rotationSpeed *= 0.90;
+                
+                // Update position
+                this.x += this.vx;
+                this.y += this.vy;
+                this.rotation += this.rotationSpeed;
+                
+                // Bounce off walls
+                const rect = canvas.getBoundingClientRect();
+                if (this.x < this.size) {
+                    this.x = this.size;
+                    this.vx *= -0.5;
+                }
+                if (this.x > rect.width - this.size) {
+                    this.x = rect.width - this.size;
+                    this.vx *= -0.5;
+                }
+                if (this.y < this.size) {
+                    this.y = this.size;
+                    this.vy *= -0.5;
+                }
+                if (this.y > rect.height - this.size) {
+                    this.y = rect.height - this.size;
+                    this.vy *= -0.5;
+                }
+            }
+
+            checkCollision(other) {
+                const dx = other.x - this.x;
+                const dy = other.y - this.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                const minDistance = this.size + other.size;
+                
+                if (distance < minDistance) {
+                    // Collision detected - push objects apart
+                    const angle = Math.atan2(dy, dx);
+                    const overlap = minDistance - distance;
+                    
+                    // Move objects apart
+                    const moveX = Math.cos(angle) * overlap * 0.5;
+                    const moveY = Math.sin(angle) * overlap * 0.5;
+                    
+                    this.x -= moveX;
+                    this.y -= moveY;
+                    other.x += moveX;
+                    other.y += moveY;
+                    
+                    // Exchange velocities for realistic collision
+                    const relativeVx = this.vx - other.vx;
+                    const relativeVy = this.vy - other.vy;
+                    const dotProduct = (relativeVx * dx + relativeVy * dy) / (distance * distance);
+                    
+                    this.vx -= dotProduct * dx * 0.5;
+                    this.vy -= dotProduct * dy * 0.5;
+                    other.vx += dotProduct * dx * 0.5;
+                    other.vy += dotProduct * dy * 0.5;
+                    
+                    // Add rotation from collision (reduced)
+                    this.rotationSpeed += (relativeVx * dy - relativeVy * dx) * 0.0002;
+                    other.rotationSpeed -= (relativeVx * dy - relativeVy * dx) * 0.0002;
+                }
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotation);
+                
+                // Create gradient
+                const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, this.size);
+                gradient.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+                gradient.addColorStop(0.5, 'rgba(230, 230, 230, 0.8)');
+                gradient.addColorStop(1, 'rgba(200, 200, 200, 0.7)');
+                
+                ctx.fillStyle = gradient;
+                ctx.strokeStyle = 'rgba(100, 100, 100, 0.5)';
+                ctx.lineWidth = 2;
+                
+                ctx.beginPath();
+                
+                if (this.shape === 'circle') {
+                    ctx.arc(0, 0, this.size, 0, Math.PI * 2);
+                } else if (this.shape === 'square') {
+                    ctx.rect(-this.size, -this.size, this.size * 2, this.size * 2);
+                } else {
+                    const sides = this.shape === 'pentagon' ? 5 : 6;
+                    for (let i = 0; i < sides; i++) {
+                        const angle = (i / sides) * Math.PI * 2;
+                        const x = Math.cos(angle) * this.size;
+                        const y = Math.sin(angle) * this.size;
+                        if (i === 0) ctx.moveTo(x, y);
+                        else ctx.lineTo(x, y);
+                    }
+                    ctx.closePath();
+                }
+                
+                ctx.fill();
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+
+        // Initialize
+        const rect = canvas.getBoundingClientRect();
+        let fluidField = new FluidField(rect.width, rect.height);
+        let objects = [];
+
+        function createObjects() {
+            objects = [];
+            const rect = canvas.getBoundingClientRect();
+            const shapes = ['circle', 'square', 'pentagon', 'hexagon'];
+            
+            for (let i = 0; i < config.objectCount; i++) {
+                let x, y, size, validPosition;
+                let attempts = 0;
+                const maxAttempts = 100;
+                
+                do {
+                    x = Math.random() * (rect.width - 80) + 40;
+                    y = Math.random() * (rect.height - 80) + 40;
+                    // Use base size from config with ±30% variation
+                    size = config.objectSize * (0.7 + Math.random() * 0.6);
+                    validPosition = true;
+                    
+                    // Check if this position overlaps with existing objects
+                    for (const obj of objects) {
+                        const dx = obj.x - x;
+                        const dy = obj.y - y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        const minDistance = obj.size + size + 5; // Add 5px buffer
+                        
+                        if (distance < minDistance) {
+                            validPosition = false;
+                            break;
+                        }
+                    }
+                    
+                    attempts++;
+                } while (!validPosition && attempts < maxAttempts);
+                
+                let shape;
+                if (config.shape === 'random') {
+                    shape = shapes[Math.floor(Math.random() * shapes.length)];
+                } else {
+                    shape = config.shape;
+                }
+                
+                objects.push(new SolidObject(x, y, size, shape));
+            }
+        }
+
+        createObjects();
+
+        // Mouse/touch interaction
+        let isInteracting = false;
+        let lastX = 0;
+        let lastY = 0;
+
+        function getPosition(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return {
+                x: clientX - rect.left,
+                y: clientY - rect.top
+            };
+        }
+
+        function startInteraction(e) {
+            e.preventDefault();
+            isInteracting = true;
+            const pos = getPosition(e);
+            lastX = pos.x;
+            lastY = pos.y;
+            
+            // Add immediate radial outward push on touch - scaled by viscosity
+            const pushRadius = 50;
+            const pushStrength = 15 * (1.5 - config.viscosity); // Stronger push for low viscosity
+            for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 8) {
+                for (let r = 10; r < pushRadius; r += 15) {
+                    const fx = pos.x + Math.cos(angle) * r;
+                    const fy = pos.y + Math.sin(angle) * r;
+                    const falloff = 1 - (r / pushRadius);
+                    fluidField.addForce(
+                        fx, 
+                        fy, 
+                        Math.cos(angle) * pushStrength * falloff,
+                        Math.sin(angle) * pushStrength * falloff
+                    );
+                }
+            }
+        }
+
+        function moveInteraction(e) {
+            if (!isInteracting) return;
+            e.preventDefault();
+            
+            const pos = getPosition(e);
+            const dx = pos.x - lastX;
+            const dy = pos.y - lastY;
+            
+            // Scale force based on viscosity - low viscosity = more responsive, higher forces
+            const forceMultiplier = 2 + (1 - config.viscosity) * 3;
+            
+            // Add drag force to fluid
+            fluidField.addForce(pos.x, pos.y, dx * forceMultiplier, dy * forceMultiplier);
+            
+            // Add radial outward force from touch point
+            const pushRadius = 50;
+            const pushStrength = 12 * (1.5 - config.viscosity);
+            for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 8) {
+                for (let r = 10; r < pushRadius; r += 15) {
+                    const fx = pos.x + Math.cos(angle) * r;
+                    const fy = pos.y + Math.sin(angle) * r;
+                    const falloff = 1 - (r / pushRadius);
+                    fluidField.addForce(
+                        fx, 
+                        fy, 
+                        Math.cos(angle) * pushStrength * falloff,
+                        Math.sin(angle) * pushStrength * falloff
+                    );
+                }
+            }
+            
+            // Add circular disturbance for drag motion
+            const dragRadius = 30;
+            for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 4) {
+                const fx = pos.x + Math.cos(angle) * dragRadius;
+                const fy = pos.y + Math.sin(angle) * dragRadius;
+                fluidField.addForce(fx, fy, dx * 0.8, dy * 0.8);
+            }
+            
+            lastX = pos.x;
+            lastY = pos.y;
+        }
+
+        function endInteraction() {
+            isInteracting = false;
+        }
+
+        canvas.addEventListener('mousedown', startInteraction);
+        canvas.addEventListener('mousemove', moveInteraction);
+        canvas.addEventListener('mouseup', endInteraction);
+        canvas.addEventListener('mouseleave', endInteraction);
+        canvas.addEventListener('touchstart', startInteraction);
+        canvas.addEventListener('touchmove', moveInteraction);
+        canvas.addEventListener('touchend', endInteraction);
+
+        // Controls
+        document.getElementById('viscosity').addEventListener('input', (e) => {
+            config.viscosity = parseFloat(e.target.value);
+            document.getElementById('viscosity-value').textContent = config.viscosity.toFixed(2);
+        });
+
+        document.getElementById('object-count').addEventListener('input', (e) => {
+            config.objectCount = parseInt(e.target.value);
+            document.getElementById('count-value').textContent = config.objectCount;
+            createObjects();
+        });
+
+        document.getElementById('object-size').addEventListener('input', (e) => {
+            config.objectSize = parseInt(e.target.value);
+            document.getElementById('size-value').textContent = config.objectSize;
+            createObjects();
+        });
+
+        document.getElementById('fluid-color').addEventListener('input', (e) => {
+            config.fluidColor = e.target.value;
+        });
+
+        document.getElementById('shape-select').addEventListener('change', (e) => {
+            config.shape = e.target.value;
+            createObjects();
+        });
+
+        // Animation loop
+        function animate() {
+            const rect = canvas.getBoundingClientRect();
+            
+            // Clear canvas
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, rect.width, rect.height);
+            
+            // Draw fluid field visualization with gel-like appearance
+            ctx.globalAlpha = 1;
+            
+            // Viscosity affects visual density and behavior
+            // Low viscosity (0.3) = thin, watery, dispersed
+            // High viscosity (0.98) = thick, gel-like, concentrated
+            const viscosityFactor = config.viscosity;
+            const densitySize = 8 + (viscosityFactor * 4); // Thicker fluid = larger density cells
+            const densityCols = Math.floor(rect.width / densitySize);
+            const densityRows = Math.floor(rect.height / densitySize);
+            
+            for (let y = 0; y < densityRows; y++) {
+                for (let x = 0; x < densityCols; x++) {
+                    const px = x * densitySize;
+                    const py = y * densitySize;
+                    
+                    // Sample fluid velocity in this area
+                    const vel = fluidField.getVelocity(px + densitySize / 2, py + densitySize / 2);
+                    const mag = Math.sqrt(vel.x * vel.x + vel.y * vel.y);
+                    
+                    // Calculate density based on velocity magnitude and position
+                    const noise = Math.sin(x * 0.3 + y * 0.4) * 0.15 + 0.85;
+                    // Higher viscosity = more visible at lower velocities (sticky, thick)
+                    const densityMultiplier = 1.5 + viscosityFactor * 1.5;
+                    const density = Math.min(mag * densityMultiplier + 0.2 * viscosityFactor, 1) * noise;
+                    
+                    if (density > 0.1) {
+                        // Parse the hex color
+                        const hex = config.fluidColor.replace('#', '');
+                        const r = parseInt(hex.substr(0, 2), 16);
+                        const g = parseInt(hex.substr(2, 2), 16);
+                        const b = parseInt(hex.substr(4, 2), 16);
+                        
+                        // Create gradient for each cell
+                        // High viscosity = more concentrated, opaque pools
+                        const gradientRadius = densitySize * (1 + viscosityFactor * 0.5);
+                        const gradient = ctx.createRadialGradient(
+                            px + densitySize / 2, 
+                            py + densitySize / 2, 
+                            0,
+                            px + densitySize / 2, 
+                            py + densitySize / 2, 
+                            gradientRadius
+                        );
+                        
+                        const opacity = viscosityFactor * 0.7 + 0.3; // Thicker = more opaque
+                        gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${density * opacity})`);
+                        gradient.addColorStop(0.5, `rgba(${r}, ${g}, ${b}, ${density * opacity * 0.4})`);
+                        gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+                        
+                        ctx.fillStyle = gradient;
+                        ctx.fillRect(px - densitySize, py - densitySize, densitySize * 3, densitySize * 3);
+                    }
+                }
+            }
+            
+            // Add flowing streaks for movement
+            // Low viscosity = more, thinner streaks (flows easily)
+            // High viscosity = fewer, thicker streaks (resists flow)
+            const streakSkip = Math.floor(1 + viscosityFactor * 2); // Higher viscosity = fewer streaks
+            const streakAlpha = 0.3 + (1 - viscosityFactor) * 0.3; // Lower viscosity = more visible streaks
+            ctx.globalAlpha = streakAlpha;
+            
+            for (let y = 0; y < fluidField.rows; y += streakSkip) {
+                for (let x = 0; x < fluidField.cols; x += streakSkip) {
+                    const idx = fluidField.index(x, y);
+                    const vx = fluidField.velocityX[idx];
+                    const vy = fluidField.velocityY[idx];
+                    const mag = Math.sqrt(vx * vx + vy * vy);
+                    
+                    // Lower viscosity requires less velocity to show streaks (flows easier)
+                    const threshold = 0.3 + viscosityFactor * 0.5;
+                    
+                    if (mag > threshold) {
+                        const px = x * fluidField.resolution;
+                        const py = y * fluidField.resolution;
+                        
+                        // Parse the hex color
+                        const hex = config.fluidColor.replace('#', '');
+                        const r = parseInt(hex.substr(0, 2), 16);
+                        const g = parseInt(hex.substr(2, 2), 16);
+                        const b = parseInt(hex.substr(4, 2), 16);
+                        
+                        // Low viscosity = longer, thinner streaks
+                        // High viscosity = shorter, thicker streaks
+                        const streakLength = 8 * (1.5 - viscosityFactor * 0.5);
+                        const streakWidth = 2 + viscosityFactor * 2;
+                        
+                        const gradient = ctx.createLinearGradient(
+                            px, py, 
+                            px + vx * streakLength, py + vy * streakLength
+                        );
+                        gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${Math.min(mag * 0.4, 0.9)})`);
+                        gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+                        
+                        ctx.strokeStyle = gradient;
+                        ctx.lineWidth = Math.min(mag * streakWidth, 5);
+                        ctx.lineCap = 'round';
+                        ctx.beginPath();
+                        ctx.moveTo(px, py);
+                        ctx.lineTo(px + vx * streakLength, py + vy * streakLength);
+                        ctx.stroke();
+                    }
+                }
+            }
+            ctx.globalAlpha = 1;
+            
+            // Update and draw objects
+            for (const obj of objects) {
+                obj.update(fluidField);
+            }
+            
+            // Check collisions between all objects
+            for (let i = 0; i < objects.length; i++) {
+                for (let j = i + 1; j < objects.length; j++) {
+                    objects[i].checkCollision(objects[j]);
+                }
+            }
+            
+            // Draw objects
+            for (const obj of objects) {
+                obj.draw(ctx);
+            }
+            
+            // Step fluid simulation
+            fluidField.step();
+            
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+    </script>
+</body>
+</html>
