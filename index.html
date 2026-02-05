@@ -238,7 +238,7 @@
 <body>
     <canvas id="canvas"></canvas>
     
-    <div class="version">v1.2</div>
+    <div class="version">v1.3</div>
     
     <button class="settings-btn" id="settings-btn" aria-label="Settings">
         <svg viewBox="0 0 24 24">
@@ -443,13 +443,19 @@
                 // Get fluid velocity at object position
                 const vel = fluidField.getVelocity(this.x, this.y);
                 
-                // Apply fluid force
-                this.vx += vel.x * 0.5;
-                this.vy += vel.y * 0.5;
+                // Apply fluid force - scaled by viscosity
+                // Low viscosity (0.3) = objects move freely (0.5 multiplier)
+                // High viscosity (0.98) = objects move slowly through thick fluid (0.1 multiplier)
+                const fluidResponseMultiplier = 0.5 * (1.5 - config.viscosity);
+                this.vx += vel.x * fluidResponseMultiplier;
+                this.vy += vel.y * fluidResponseMultiplier;
                 
-                // Apply friction
-                this.vx *= 0.95;
-                this.vy *= 0.95;
+                // Apply friction - scaled by viscosity
+                // Low viscosity (0.3) = less drag (0.95)
+                // High viscosity (0.98) = much more drag (0.80)
+                const frictionMultiplier = 0.95 - (config.viscosity * 0.15);
+                this.vx *= frictionMultiplier;
+                this.vy *= frictionMultiplier;
                 this.rotationSpeed *= 0.85;
                 
                 // Update position
