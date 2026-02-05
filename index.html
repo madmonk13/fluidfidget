@@ -517,15 +517,20 @@
                 ctx.translate(this.x, this.y);
                 ctx.rotate(this.rotation);
                 
-                // Create gradient
-                const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, this.size);
-                gradient.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
-                gradient.addColorStop(0.5, 'rgba(230, 230, 230, 0.8)');
-                gradient.addColorStop(1, 'rgba(200, 200, 200, 0.7)');
-                
-                ctx.fillStyle = gradient;
-                ctx.strokeStyle = 'rgba(100, 100, 100, 0.5)';
-                ctx.lineWidth = 2;
+                if (config.objectStyle === 'outline') {
+                    // Outlined style - no fill, just stroke
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+                    ctx.lineWidth = 3;
+                } else {
+                    // Solid style - gradient fill with stroke
+                    const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, this.size);
+                    gradient.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+                    gradient.addColorStop(0.5, 'rgba(230, 230, 230, 0.8)');
+                    gradient.addColorStop(1, 'rgba(200, 200, 200, 0.7)');
+                    ctx.fillStyle = gradient;
+                    ctx.strokeStyle = 'rgba(100, 100, 100, 0.5)';
+                    ctx.lineWidth = 2;
+                }
                 
                 ctx.beginPath();
                 
@@ -545,6 +550,10 @@
                     ctx.closePath();
                 }
                 
+                if (config.objectStyle === 'solid') {
+                    ctx.fill();
+                }
+                ctx.stroke();
                 ctx.restore();
             }
         }
